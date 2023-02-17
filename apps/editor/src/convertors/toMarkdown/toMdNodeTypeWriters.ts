@@ -83,6 +83,14 @@ export const nodeTypeWriters: ToMdNodeTypeWriterMap = {
       if (emptyNode && prevEmptyNode) {
         state.write('<br>\n');
       } else if (emptyNode && !prevEmptyNode && !firstChildNode) {
+        if (parent?.type.name === 'listItem') {
+          const prevDelim = state.getDelim();
+
+          state.setDelim('');
+          state.write('<br>');
+
+          state.setDelim(prevDelim);
+        }
         state.write('\n');
       } else {
         state.convertInline(node);
@@ -237,6 +245,11 @@ export const nodeTypeWriters: ToMdNodeTypeWriterMap = {
     if (node.attrs.htmlBlock) {
       state.closeBlock(node);
     }
+  },
+
+  htmlComment(state, { node }, { text }) {
+    state.write(text);
+    state.closeBlock(node);
   },
 };
 

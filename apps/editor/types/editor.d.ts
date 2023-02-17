@@ -1,6 +1,10 @@
 import { Schema, NodeSpec, MarkSpec, Fragment } from 'prosemirror-model';
 import { EditorView, Decoration, DecorationSet } from 'prosemirror-view';
-import { EditorState, Plugin, Selection, TextSelection } from 'prosemirror-state';
+import { EditorState, Plugin, PluginKey, Selection, TextSelection } from 'prosemirror-state';
+import { undoInputRule, InputRule, inputRules } from 'prosemirror-inputrules';
+import { keymap } from 'prosemirror-keymap';
+import { Editor } from '@t/index';
+
 import {
   HTMLConvertor,
   MdPos,
@@ -120,17 +124,40 @@ export interface PluginContext {
   eventEmitter: Emitter;
   usageStatistics?: boolean;
   i18n: I18n;
+  instance: Editor | Viewer;
   pmState: {
     Plugin: typeof Plugin;
+    PluginKey: typeof PluginKey;
     Selection: typeof Selection;
     TextSelection: typeof TextSelection;
   };
   pmView: { Decoration: typeof Decoration; DecorationSet: typeof DecorationSet };
   pmModel: { Fragment: typeof Fragment };
+  pmRules: {
+    inputRules: typeof inputRules;
+    InputRule: typeof InputRule;
+    undoInputRule: typeof undoInputRule;
+  };
+  pmKeymap: {
+    keymap: typeof keymap;
+  };
 }
 
 export type PluginFn = (context: PluginContext, options?: any) => PluginInfo | null;
 export type EditorPlugin = PluginFn | [PluginFn, any];
+type ContextInfo = {
+  eventEmitter: Emitter;
+  usageStatistics: boolean;
+  instance: Editor | Viewer;
+};
+
+export type EditorPluginInfo = ContextInfo & {
+  plugin: EditorPlugin;
+};
+
+export type EditorPluginsInfo = ContextInfo & {
+  plugins: EditorPlugin[];
+};
 
 export interface EditorOptions {
   el: HTMLElement;
@@ -258,6 +285,8 @@ export class EditorCore {
   setPlaceholder(placeholder: string): void;
 
   getEditorElements(): Slots;
+
+  convertPosToMatchEditorMode(start: EditorPos, end?: EditorPos, mode?: EditorType): EditorPos[];
 }
 
 export class Editor extends EditorCore {

@@ -2,6 +2,7 @@ import Editor from '@toast-ui/editor';
 import colorPicker from 'tui-color-picker';
 import { oneLineTrim } from 'common-tags';
 import colorSyntaxPlugin from '@/index';
+import { removeProseMirrorHackNodes } from '@/utils/dom';
 
 function removeDataAttr(html: string) {
   return html
@@ -16,7 +17,9 @@ describe('colorSyntax', () => {
   function assertWwEditorHTML(html: string) {
     const wwEditorEl = editor.getEditorElements().wwEditor;
 
-    expect(wwEditorEl).toContainHTML(html);
+    const wwEditorHTML = removeProseMirrorHackNodes(wwEditorEl.outerHTML);
+
+    expect(wwEditorHTML).toContain(html);
   }
 
   function assertMdPreviewHTML(html: string) {
@@ -246,6 +249,43 @@ describe('colorSyntax', () => {
       `;
 
       assertWwEditorHTML(expected);
+    });
+  });
+
+  describe('multi instances', () => {
+    let container2: HTMLElement, editor2: Editor;
+
+    beforeEach(() => {
+      container2 = document.createElement('div');
+      document.body.appendChild(container2);
+    });
+
+    afterEach(() => {
+      editor2.destroy();
+      document.body.removeChild(container2);
+    });
+
+    it('should focus to correct editor when using color syntax plugin', () => {
+      editor = new Editor({
+        el: container,
+        previewStyle: 'vertical',
+        height: '100px',
+        initialEditType: 'markdown',
+        plugins: [colorSyntaxPlugin],
+      });
+
+      editor2 = new Editor({
+        el: container2,
+        previewStyle: 'vertical',
+        height: '100px',
+        initialEditType: 'markdown',
+        plugins: [colorSyntaxPlugin],
+      });
+
+      editor2.exec('selectAll');
+      editor2.exec('color', { selectedColor: '#f0f' });
+
+      expect(container2).toContainElement(document.activeElement as HTMLElement);
     });
   });
 });

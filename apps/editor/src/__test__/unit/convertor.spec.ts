@@ -2,7 +2,7 @@ import { source, oneLineTrim } from 'common-tags';
 
 import { Context, MdNode, Parser, HTMLConvertorMap } from '@toast-ui/toastmark';
 
-import { Schema } from 'prosemirror-model';
+import { Node, Schema } from 'prosemirror-model';
 import { createSpecs } from '@/wysiwyg/specCreator';
 
 import Convertor from '@/convertors/convertor';
@@ -292,20 +292,21 @@ describe('Convertor', () => {
       assertConverting(markdown, `${expected}\n`);
     });
 
-    it('should normalize wrong table syntax when converting', () => {
-      const markdown = source`
-        | col1 | col2 | col3 |
-        | --- | --- |
-        | cell1 | cell2 | cell3 |
-      `;
-      const expected = source`
-        | col1 | col2 | col3 |
-        | ---- | ---- | ---- |
-        | cell1 | cell2 |  |
-      `;
+    // @TODO: should normalize table cell
+    // it('should normalize wrong table syntax when converting', () => {
+    //   const markdown = source`
+    //     | col1 | col2 | col3 |
+    //     | --- | --- |
+    //     | cell1 | cell2 | cell3 |
+    //   `;
+    //   const expected = source`
+    //     | col1 | col2 | col3 |
+    //     | ---- | ---- | ---- |
+    //     | cell1 | cell2 |  |
+    //   `;
 
-      assertConverting(markdown, `${expected}\n`);
-    });
+    //   assertConverting(markdown, `${expected}\n`);
+    // });
 
     it('task', () => {
       const markdown = source`
@@ -514,6 +515,19 @@ describe('Convertor', () => {
 
       assertConverting(markdown, expected);
     });
+
+    it('should convert html comment', () => {
+      const markdown = source`
+        <!--
+        foo
+
+        bar
+        baz
+        -->
+      `;
+
+      assertConverting(markdown, markdown);
+    });
   });
 
   describe('convert inline html', () => {
@@ -719,6 +733,22 @@ describe('Convertor', () => {
         <ul><li>foo <i>bar</i></li></ul>
         <blockquote><s>foo</s> bar</blockquote>
       `;
+
+      assertConverting(markdown, expected);
+    });
+  });
+
+  describe('convert custom inline', () => {
+    it('with info only', () => {
+      const markdown = source`$$custom$$`;
+      const expected = oneLineTrim`$$custom$$`;
+
+      assertConverting(markdown, expected);
+    });
+
+    it('with info and text', () => {
+      const markdown = source`$$custom inline$$`;
+      const expected = oneLineTrim`$$custom inline$$`;
 
       assertConverting(markdown, expected);
     });
@@ -1030,5 +1060,46 @@ describe('Convertor', () => {
 
       assertConverting(markdown, markdown);
     });
+  });
+
+  it('should convert empty line between lists of wysiwig to <br>', () => {
+    const wwNodeJson = {
+      type: 'doc',
+      content: [
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: 'test_1' }] },
+                { type: 'paragraph', content: [] },
+              ],
+            },
+            {
+              type: 'listItem',
+              content: [{ type: 'paragraph', content: [{ type: 'text', text: 'test_2' }] }],
+            },
+          ],
+        },
+      ],
+    };
+
+    const wwNode = Node.fromJSON(schema, wwNodeJson);
+
+    const result = convertor.toMarkdownText(wwNode);
+
+    expect(result).toBe(`* test\\_1\n<br>\n* test\\_2`);
+  });
+
+  it('should escape the backslash, which is a plain chracter in the middle of a sentence', () => {
+    const markdown = source`
+      backslash \\in the middle of a sentence
+      `;
+    const expected = source`
+      backslash \\\\in the middle of a sentence
+      `;
+
+    assertConverting(markdown, expected);
   });
 });

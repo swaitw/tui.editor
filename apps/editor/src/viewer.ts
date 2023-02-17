@@ -73,7 +73,12 @@ class ToastUIEditorViewer {
 
     const linkAttributes = sanitizeLinkAttribute(this.options.linkAttributes);
     const { toHTMLRenderers, markdownParsers } =
-      getPluginInfo(this.options.plugins, this.eventEmitter, this.options.usageStatistics) || {};
+      getPluginInfo({
+        plugins: this.options.plugins,
+        eventEmitter: this.eventEmitter,
+        usageStatistics: this.options.usageStatistics,
+        instance: this,
+      }) || {};
     const {
       customHTMLRenderer,
       extendedAutolinks,
@@ -147,6 +152,10 @@ class ToastUIEditorViewer {
       isPositionInBox(style, ev.offsetX, ev.offsetY)
     ) {
       toggleClass(element, TASK_CHECKED_CLASS_NAME);
+      this.eventEmitter.emit('change', {
+        source: 'viewer',
+        date: ev,
+      });
     }
   }
 

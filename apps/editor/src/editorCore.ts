@@ -38,11 +38,13 @@ import { WwToDOMAdaptor } from './wysiwyg/adaptor/wwToDOMAdaptor';
 import { ScrollSync } from './markdown/scroll/scrollSync';
 import { addDefaultImageBlobHook } from './helper/image';
 import { setWidgetRules } from './widget/rules';
-import { cls, replaceBRWithEmptyBlock } from './utils/dom';
+import { cls, removeProseMirrorHackNodes, replaceBRWithEmptyBlock } from './utils/dom';
 import { sanitizeHTML } from './sanitizer/htmlSanitizer';
 import { createHTMLSchemaMap } from './wysiwyg/nodes/html';
 import { getHTMLRenderConvertors } from './markdown/htmlRenderConvertors';
 import { buildQuery } from './queries/queryManager';
+import { getEditorToMdPos, getMdToEditorPos } from './markdown/helper/pos';
+import { Pos } from '@t/toastmark';
 
 /**
  * ToastUIEditorCore
@@ -112,6 +114,8 @@ class ToastUIEditorCore {
 
   private scrollSync: ScrollSync;
 
+  private placeholder?: string;
+
   eventEmitter: Emitter;
 
   protected options: Required<EditorOptions>;
@@ -179,11 +183,12 @@ class ToastUIEditorCore {
 
     const linkAttributes = sanitizeLinkAttribute(this.options.linkAttributes);
 
-    this.pluginInfo = getPluginInfo(
-      this.options.plugins,
-      this.eventEmitter,
-      this.options.usageStatistics
-    );
+    this.pluginInfo = getPluginInfo({
+      plugins: this.options.plugins,
+      eventEmitter: this.eventEmitter,
+      usageStatistics: this.options.usageStatistics,
+      instance: this,
+    });
     const {
       toHTMLRenderers,
       toMarkdownRenderers,
@@ -290,6 +295,17 @@ class ToastUIEditorCore {
 
   private addInitEvent() {
     this.on('needChangeMode', this.changeMode.bind(this));
+    this.on('loadUI', () => {
+      if (this.height !== 'auto') {
+        // 75px equals default editor ui height - the editing area height
+        const minHeight = `${Math.min(
+          parseInt(this.minHeight, 10),
+          parseInt(this.height, 10) - 75
+        )}px`;
+
+        this.setMinHeight(minHeight);
+      }
+    });
     addDefaultImageBlobHook(this.eventEmitter);
   }
 
@@ -490,8 +506,18 @@ class ToastUIEditorCore {
         this.wwEditor.setModel(wwNode!);
       }
     });
+    const html = removeProseMirrorHackNodes(this.wwEditor.view.dom.innerHTML);
 
-    return this.wwEditor.view.dom.innerHTML;
+    if (this.placeholder) {
+      const rePlaceholder = new RegExp(
+        `<span class="placeholder[^>]+>${this.placeholder}</span>`,
+        'i'
+      );
+
+      return html.replace(rePlaceholder, '');
+    }
+
+    return html;
   }
 
   /**
@@ -589,11 +615,10 @@ class ToastUIEditorCore {
     if (isString(height)) {
       if (height === 'auto') {
         addClass(el, 'auto-height');
-        this.setMinHeight(this.getMinHeight());
       } else {
         removeClass(el, 'auto-height');
-        this.setMinHeight(height);
       }
+      this.setMinHeight(this.getMinHeight());
     }
 
     css(el, { height });
@@ -613,20 +638,22 @@ class ToastUIEditorCore {
    * @param {string} minHeight - min content height in pixel
    */
   setMinHeight(minHeight: string) {
-    this.minHeight = minHeight;
+    if (minHeight !== this.minHeight) {
+      const height = this.height || this.options.height;
 
-    const { el } = this.options;
-    const editorHeight = el.clientHeight;
-    const editorSectionHeight = el.querySelector(`.${cls('main')}`)?.clientHeight || 0;
-    // 75px equals default editor ui height - the editing area height
-    const diffHeight = Math.max(editorHeight - editorSectionHeight, 75);
-    let minHeightNum = parseInt(minHeight, 10);
+      if (height !== 'auto' && this.options.el.querySelector(`.${cls('main')}`)) {
+        // 75px equals default editor ui height - the editing area height
+        minHeight = `${Math.min(parseInt(minHeight, 10), parseInt(height, 10) - 75)}px`;
+      }
 
-    minHeightNum = Math.max(minHeightNum - diffHeight, 0);
+      const minHeightNum = parseInt(minHeight, 10);
 
-    this.wwEditor.setMinHeight(minHeightNum);
-    this.mdEditor.setMinHeight(minHeightNum);
-    this.preview.setMinHeight(minHeightNum);
+      this.minHeight = minHeight;
+
+      this.wwEditor.setMinHeight(minHeightNum);
+      this.mdEditor.setMinHeight(minHeightNum);
+      this.preview.setMinHeight(minHeightNum);
+    }
   }
 
   /**
@@ -781,6 +808,7 @@ class ToastUIEditorCore {
    * @param {string} placeholder - placeholder to set
    */
   setPlaceholder(placeholder: string) {
+    this.placeholder = placeholder;
     this.mdEditor.setPlaceholder(placeholder);
     this.wwEditor.setPlaceholder(placeholder);
   }
@@ -794,6 +822,33 @@ class ToastUIEditorCore {
       mdPreview: this.preview.getElement(),
       wwEditor: this.wwEditor.getElement(),
     };
+  }
+
+  /**
+   * Convert position to match editor mode
+   * @param {number|Array.<number>} start - start position
+   * @param {number|Array.<number>} end - end position
+   * @param {string} mode - Editor mode name of want to match converted position to
+   */
+  convertPosToMatchEditorMode(start: EditorPos, end = start, mode = this.mode) {
+    const { doc } = this.mdEditor.view.state;
+    const isFromArray = Array.isArray(start);
+    const isToArray = Array.isArray(end);
+
+    let convertedFrom = start;
+    let convertedTo = end;
+
+    if (isFromArray !== isToArray) {
+      throw new Error('Types of arguments must be same');
+    }
+
+    if (mode === 'markdown' && !isFromArray && !isToArray) {
+      [convertedFrom, convertedTo] = getEditorToMdPos(doc, start as number, end as number);
+    } else if (mode === 'wysiwyg' && isFromArray && isToArray) {
+      [convertedFrom, convertedTo] = getMdToEditorPos(doc, start as Pos, end as Pos);
+    }
+
+    return [convertedFrom, convertedTo];
   }
 }
 

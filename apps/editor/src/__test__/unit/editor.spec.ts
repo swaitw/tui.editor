@@ -61,6 +61,27 @@ describe('editor', () => {
       document.body.removeChild(container);
     });
 
+    describe('convertPosToMatchEditorMode', () => {
+      const mdPos: [number, number] = [2, 1];
+      const wwPos = 14;
+
+      it('should convert position to match editor mode', () => {
+        editor.setMarkdown('Hello World\nwelcome to the world');
+
+        editor.changeMode('wysiwyg');
+        expect(editor.convertPosToMatchEditorMode(mdPos)).toEqual([wwPos, wwPos]);
+
+        editor.changeMode('markdown');
+        expect(editor.convertPosToMatchEditorMode(wwPos)).toEqual([mdPos, mdPos]);
+      });
+
+      it('should occurs error when types of parameters is not matched', () => {
+        expect(() => {
+          editor.convertPosToMatchEditorMode(mdPos, wwPos);
+        }).toThrowError();
+      });
+    });
+
     it('setPlaceholder()', () => {
       editor.setPlaceholder('Please input text');
 
@@ -116,6 +137,17 @@ describe('editor', () => {
         editor.setHTML(input);
 
         expect(editor.getHTML()).toBe(expected);
+      });
+
+      it('placeholder should be removed', () => {
+        editor.changeMode('wysiwyg');
+        editor.setPlaceholder('placeholder');
+
+        const result = oneLineTrim`
+          <p><br></p>
+        `;
+
+        expect(editor.getHTML()).toBe(result);
       });
     });
 
@@ -246,12 +278,22 @@ describe('editor', () => {
       expect(getPreviewHTML()).toBe('');
     });
 
-    it('setMinHeight()', () => {
-      editor.setMinHeight('200px');
+    describe('setMinHeight()', () => {
+      it('should set height with pixel option', () => {
+        editor.setMinHeight('200px');
 
-      expect(mdEditor).toHaveStyle({ minHeight: '200px' });
-      expect(mdPreview).toHaveStyle({ minHeight: '200px' });
-      expect(wwEditor).toHaveStyle({ minHeight: '200px' });
+        expect(mdEditor).toHaveStyle({ minHeight: '200px' });
+        expect(mdPreview).toHaveStyle({ minHeight: '200px' });
+        expect(wwEditor).toHaveStyle({ minHeight: '200px' });
+      });
+
+      it('should be less than the editor height', () => {
+        editor.setMinHeight('400px');
+
+        expect(mdEditor).toHaveStyle({ minHeight: '225px' });
+        expect(mdPreview).toHaveStyle({ minHeight: '225px' });
+        expect(wwEditor).toHaveStyle({ minHeight: '225px' });
+      });
     });
 
     describe('setHeight()', () => {
@@ -260,9 +302,9 @@ describe('editor', () => {
 
         expect(container).not.toHaveClass('auto-height');
         expect(container).toHaveStyle({ height: '300px' });
-        expect(mdEditor).toHaveStyle({ minHeight: '300px' });
-        expect(mdPreview).toHaveStyle({ minHeight: '300px' });
-        expect(wwEditor).toHaveStyle({ minHeight: '300px' });
+        expect(mdEditor).toHaveStyle({ minHeight: '200px' });
+        expect(mdPreview).toHaveStyle({ minHeight: '200px' });
+        expect(wwEditor).toHaveStyle({ minHeight: '200px' });
       });
 
       it('should set height with auto option', () => {
@@ -270,9 +312,9 @@ describe('editor', () => {
 
         expect(container).toHaveClass('auto-height');
         expect(container).toHaveStyle({ height: 'auto' });
-        expect(mdEditor).toHaveStyle({ minHeight: '300px' });
-        expect(mdPreview).toHaveStyle({ minHeight: '300px' });
-        expect(wwEditor).toHaveStyle({ minHeight: '300px' });
+        expect(mdEditor).toHaveStyle({ minHeight: '200px' });
+        expect(mdPreview).toHaveStyle({ minHeight: '200px' });
+        expect(wwEditor).toHaveStyle({ minHeight: '200px' });
       });
     });
 
